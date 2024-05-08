@@ -54,25 +54,15 @@ bairros_rg<-st_transform(bairros_rg,"+init=epsg:4326")
 dem<-raster('/home/gandra/Dropbox/SIG/inundacao/SIG/dem_rs.tif')
 dem2<-raster('/home/gandra/Dropbox/SIG/inundacao/SIG/dem_rs2.tif')
 
-dem2<-mask(dem2,mun)
-plot(dem2)
+
+
 ##Extract elevation for polygons-----
 mun$elev_mean<-extract(dem,mun,mean)
-
 set$elev_mean<-as.numeric(extract(dem,set,mean))
 
-# set$elev_min<-as.numeric(extract(dem,set,min))
-
-# dem<-mask(dem,mun)
-plot(dem)
 
 
 
-
-##Salvando dados de input para a PIE
-b<-as.data.frame(bairros_rg)
-b$geometry<-NULL
-write.csv(b,'output_data/bairros_elev.csv')
 
 
 # Exportando-----------
@@ -83,7 +73,8 @@ write.csv(b,'output_data/bairros_elev.csv')
 st_write(bairros_rg, 'input_data/bairros_rg.shp',overwrite=T, append = F)
 
 
-save(dem,dem2,set,mun,bairros_rg, file='output_data/data.Rda')
+##Salvando RDA-------
+save(dem,set,mun,bairros_rg, file='output_data/data.Rda')
 
 
 #Cenários----------
@@ -94,51 +85,27 @@ dem<-raster('/home/gandra/Dropbox/SIG/inundacao/SIG/dem_rs.tif')
 dem<-mask(dem,mun)
 plot(dem)
 
-c17_r<-dem<=1.7
+##Cenario 1--------
+cr<-dem<=1.7
+
+plot(cr)
+
+cr<-as(cr, "SpatRaster")
+plot(cr)
+cpol<-as.polygons(cr,values=T,aggregate=T,na.rm=T)
+plot(cpol)
+cpol<-st_as_sf(cpol)
+cpol<-cpol%>%filter(layer==1)
+
+cpol2= st_cast(cpol,"POLYGON")
+cpol=st_as_sf(cpol2)
+cpol$area<-as.numeric(st_area(cpol))
+cpol<-cpol%>%filter(area>=8000)
+
+plot(cpol)
 
 
-plot(c17_r)
-
-c17_r<-as(c17_r, "SpatRaster")
-plot(c17_r)
-c17_pol<-as.polygons(c17_r,values=T,aggregate=T,na.rm=T)
-plot(c17_pol)
-c17_pol<-st_as_sf(c17_pol)
-c17_pol<-c17_pol%>%filter(layer==1)
-
-c17_pol2= st_cast(c17_pol,"POLYGON")
-c17_pol=st_as_sf(c17_pol2)
-c17_pol$area<-as.numeric(st_area(c17_pol))
-c17_pol<-c17_pol%>%filter(area>=8000)
-
-
-
-plot(c17_pol)
-
-
-c25_r<-dem<=2.5
-c25_r<-as(c25_r, "SpatRaster")
-plot(c25_r)
-c25_pol<-as.polygons(c25_r,values=T,aggregate=T,na.rm=T)
-c25_pol<-st_as_sf(c25_pol)
-c25_pol<-c25_pol%>%filter(layer==1)
-
-c25_pol2= st_cast(c25_pol,"POLYGON")
-c25_pol=st_as_sf(c25_pol2)
-c25_pol$area<-as.numeric(st_area(c25_pol))
-c25_pol<-c25_pol%>%filter(area>=8000)
-
-plot(c25_pol)
-
-# writeRaster(c17_r,'output_data/dem_c17.tif')
-# writeRaster(c25_r,'output_data/dem_c25.tif')
-
-## Selecionando setores
-# set<-set%>%mutate(c17_count=as.numeric(extract(c17_r,set,sum)),
-#                   c25_count=as.numeric(extract(c25_r,set,sum)))
-
-set$area_km<-as.numeric(st_area(set)/1000000)
-set17<-st_intersection(set,c17_pol)
+set17<-st_intersection(set,cpol)
 set17$area<-as.numeric(st_area(set17))/1000000
 
 set17$geom<-NULL
@@ -147,12 +114,27 @@ set17<-set17%>%group_by(CD_SETOR)%>%summarise(area17=sum(area,na.rm=T))
 
 set<-set%>%left_join(set17%>%select(CD_SETOR,area17),by='CD_SETOR')
 
-set<-set%>%mutate(c17p=area17*100/area_km)
+set<-set%>%mutate(c17p=area17*100/area)
 
-save(c17_pol,c25_pol,file='output_data/cenarios.Rda')
+##Cenario 2------
+cr<-dem<=2.5
 
-###
-load('output_data/cenarios.Rda')
+plot(cr)
+
+cr<-as(cr, "SpatRaster")
+plot(cr)
+cpol<-as.polygons(cr,values=T,aggregate=T,na.rm=T)
+plot(cpol)
+cpol<-st_as_sf(cpol)
+cpol<-cpol%>%filter(layer==1)
+
+cpol2= st_cast(cpol,"POLYGON")
+cpol=st_as_sf(cpol2)
+cpol$area<-as.numeric(st_area(cpol))
+cpol<-cpol%>%filter(area>=8000)
+
+plot(cpol)
+
 set25<-st_intersection(set,c25_pol)
 set25$area<-as.numeric(st_area(set25))/1000000
 
@@ -162,20 +144,73 @@ set25<-set25%>%group_by(CD_SETOR)%>%summarise(area25=sum(area,na.rm=T))
 
 set<-set%>%left_join(set25%>%select(CD_SETOR,area25),by='CD_SETOR')
 
-set<-set%>%mutate(c25p=area25*100/area_km)
+set<-set%>%mutate(c25p=area25*100/area)
+
+##Cenario 3--------
+cr<-dem<=5
+
+plot(cr)
+
+cr<-as(cr, "SpatRaster")
+plot(cr)
+cpol<-as.polygons(cr,values=T,aggregate=T,na.rm=T)
+plot(cpol)
+cpol<-st_as_sf(cpol)
+cpol<-cpol%>%filter(layer==1)
+
+cpol2= st_cast(cpol,"POLYGON")
+cpol=st_as_sf(cpol2)
+cpol$area<-as.numeric(st_area(cpol))
+cpol<-cpol%>%filter(area>=8000)
+plot(cpol)
+c50_pol<-cpol
+set50<-st_intersection(set,cpol)
+set50$area<-as.numeric(st_area(set50))/1000000
+
+set50$geom<-NULL
+
+set50<-set50%>%group_by(CD_SETOR)%>%summarise(area50=sum(area,na.rm=T))
+
+set<-set%>%left_join(set50%>%dplyr::select(CD_SETOR,area50),by='CD_SETOR')
+
+set<-set%>%mutate(c50p=area50*100/area)
+
+save(c17_pol,c25_pol,c50_pol,file='output_data/cenarios.Rda')
+
+## Organizando Setores--------
+
+
+set<-set%>%dplyr::select(CD_SETOR,
+                  CD_MUN,
+                  NM_MUN,
+                  pop,
+                  dom,
+                  area,
+                  dens,
+                  area17,
+                  area25,
+                  area50,
+                  c17p,
+                  c25p,
+                  c50p)%>%mutate(dens=pop/area)
 
 hist(set$c25p)
 
 
-write_sf(set,'/home/gandra/Dropbox/SIG/inundacao/SIG/setoresf.shp')
+write_sf(set,'/home/gandra/Documents/SIG/inundacao/draft/setoresf2.shp',overwrite=T)
+write_sf(c17_pol,'/home/gandra/Documents/SIG/inundacao/draft/cenario17.shp',overwrite=T)
 
+load('output_data/cenarios.Rda')
 
-
-save(dem,set,mun,bairros_rg,c17_pol,c25_pol, file='output_data/data.Rda')
+save(dem,set,mun,bairros_rg,c17_pol,c25_pol, c50_pol,file='output_data/data.Rda')
 
 
 
 # Rio Grande------------
+
+b<-as.data.frame(bairros_rg)
+b$geometry<-NULL
+write.csv(b,'output_data/bairros_elev.csv')
 ##Bairros-------
 bairros_rg$elev_mean<-as.numeric(bairros_rg$elev_mean)
 # bairros_rg$elev_max<-as.numeric(bairros_rg$elev_max)

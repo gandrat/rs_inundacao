@@ -25,7 +25,7 @@ theme_set(theme_bw())
 
 load('output_data/data.Rda')   #produced after 0_prepare_data.R script
 
-
+# load('output_data/nivel.Rda')
 
 #Creating lists for inputs
 munlist<-sort(unique(as.character(mun$NM_MUN)))
@@ -34,58 +34,82 @@ set$dens=format(round(set$dens, 2), nsmall = 2)
 
 
 set<-set%>%mutate(`Cenário 1`=c17p,
-                  `Cenário 2`=c25p)
+                  `Cenário 2`=c25p,
+                  `Cenário 3`=c50p)
 
-cenariolist<-set%>%dplyr::select(`Cenário 1`,`Cenário 2`)
+setdf<-set
+setdf$geom<-NULL
+
+cenariolist<-set%>%dplyr::select(`Cenário 1`,`Cenário 2`,`Cenário 3`)
 cenariolist$geom<-NULL
-# pal <- colorNumeric(c("#0C2C84", "#41B6C4", "#FFFFCC"), values(dem2),
-#                     na.color = "transparent")
 
 
+# Palettes---------
+palette_rev <- rev(brewer.pal(5, "Spectral"))
 
+cls = rep(c(brewer.pal(12, "Set3"), brewer.pal(8,"Dark2"), brewer.pal(10, "Paired"),  brewer.pal(8,"Set2"), brewer.pal(9, "Set1"), brewer.pal(8, "Accent"),  brewer.pal(9, "Pastel1"),  brewer.pal(8, "Pastel2")))
 
-# Map colors and pallettes-----------
-
-# cls = rep(c(brewer.pal(12, "Set3"), brewer.pal(8,"Dark2"), brewer.pal(10, "Paired"),  brewer.pal(8,"Set2"), brewer.pal(9, "Set1"), brewer.pal(8, "Accent"),  brewer.pal(9, "Pastel1"),  brewer.pal(8, "Pastel2")))
-
-
+pal_sp<-colorFactor(cls,
+                    domain = munlist)
+global_colors <- setNames(pal_sp(munlist), munlist) 
 #basemap ----
 basemap = leaflet(option=leafletOptions(zoomControl=T)) %>% 
   addTiles() %>% 
   addLayersControl(
     position = "bottomright",
     overlayGroups = c("Municípios",
-                      "Setores Censitários Afetados",
+                      "Setores Afetados (% de área)",
+                      "População",
+                      # "Densidade Demográfica",
+                      "Número de Domicílios",
                       "Cenário 1 (1,7 m)",
-                      'Cenário 2 (2,5 m)'),
+                      'Cenário 2 (2,5 m)',
+                      'Cenário 3 (5,0 m)'),
     options = layersControlOptions(collapsed = FALSE)) %>% 
-  hideGroup(c("Cenário 2 (2,5 m)"))%>%
-  setView(-52, -32, 10)
-basemap
+  hideGroup(c("População",
+              "Densidade Demográfica",
+              "Número de Domicílios",
+              "Cenário 1 (1,7 m)",
+              "Cenário 2 (2,5 m)",
+              'Cenário 3 (5,0 m)'))%>%
+  setView(-52, -31.5, 7)
+# basemap
 
 
+nivel_plot = function(nivel) {
+  g1 = ggplot(nivel, aes(x = time, y = nivel)) +
+    geom_path(alpha=.5,fill='darkblue')+
+    ylab("Nível (m)")+ theme_bw() +
+    xlab(NULL)
+  ggplotly(g1, tooltip = c("text"))
+}
+
+
+pop_plot = function(setdf) {
+  g1 = ggplot(setdf, aes(x = NM_MUN, y = pop,fill=NM_MUN)) +
+    geom_bar(position="stack", stat="identity") +
+    scale_fill_manual(values=global_colors) +
+    ylab("População Afetada")+xlab(NULL) + theme_bw() +
+    coord_flip()+
+    
+    theme(legend.title = element_blank(), legend.position = "none", plot.title = element_text(size=12,hjust=0.5))
+  ggplotly(g1, tooltip = c("text"))
+}
 #UI-----
 ui <- 
   navbarPage(theme = shinytheme("flatly"), collapsible = TRUE, id="nav",
-             title=div(img(src= 'logo_ufrgs.png', height="40px", width='71px'),"Geoportal da Inundação no RS",img(src= 'ifrs_logo.png', height="40px", width='97px')), 
+             title=div(img(src= 'logo_ufrgs.png', height="40px"),"       Geoportal da Inundação no RS       ",img(src= 'ifrs_logo.png', height="40px")), 
              
              ##Tab Maps-----------
              tabPanel("Mapas",
                       sidebarLayout(
-                        sidebarPanel(id = "mapcontrols",width = 2,
+                        sidebarPanel(id = "mapcontrols",width = 3,
                                      pickerInput("mun_select", "Municípios",
                                                  choices = munlist,
                                                  selected = 'Rio Grande',
                                                  options = list(`actions-box` = TRUE),
                                                  multiple = FALSE),
-                                     
-                                     
-                                     
-                                     
-                                     # radioButtons("cenario_select",
-                                     #              "Selecione um Cenário",
-                                     #              choices = list("Cenário 1 (1,7 m)" = 'c17p', "Cenário 2 (2,5 m)" = 'c25p'),
-                                     #              selected = "Cenário 1 (1,7 m)"),
+                              
                                      
                                      varSelectInput("cenario_select", "Cenário:", cenariolist),
                                      
@@ -106,55 +130,96 @@ ui <-
                         ),
                         
 
-                        mainPanel(width=10,
-                                  leafletOutput("mymap",height = 800)),
+                        mainPanel(width=9,
+                                  leafletOutput("mymap",height = 800))
+                      )
+             ),
+             
+             ##Tab Pop Plots-----------
+             tabPanel("População por Município",
+                      sidebarLayout(
+                        sidebarPanel(id = "mapcontrols",width = 3,
+                                     pickerInput("mun_select2", "Municípios",
+                                                 choices = munlist,
+                                                 selected = munlist,
+                                                 options = list(`actions-box` = TRUE),
+                                                 multiple = TRUE),
+                                     
+                                     
+                                     varSelectInput("cenario_select2", "Cenário:", cenariolist),
+                                     
+                                     sliderInput("area_select2","Percentual de inundação no setor",
+                                                 min=0,
+                                                 max=100,
+                                                 step=5,
+                                                 value=30),
+                                     
+                                     
+                                     tags$br(),tags$br(),
+                                     h4('População Afetada:'),
+                                     h5(textOutput("reactive_pop2"), align = "left"),
+                                     tags$br(),tags$br(),
+                                     h4('Número de Domicílios:'),
+                                     h5(textOutput("reactive_dom2"), align = "left"),
+                                     
+                        ),
                         
-
                         
-                        
-                        
+                        mainPanel(width=9,
+                                  plotlyOutput("pop_ploto",height="600px"))
                       )
              ),
              
              ##Tab Plots----------------
              
-             # tabPanel("Gráficos",
-             #          # Cria a barra lateral (filtros)          
+             # tabPanel("Nível (TideSat)",
+             #          # Cria a barra lateral (filtros)
              #          sidebarLayout(
              #            sidebarPanel(width=2,
-             #                        
-             #                         
+             # 
+             # 
              #            ),
              #            #Cria o painel geral e sub-abas
              #            mainPanel(width=10,
              #                      tabsetPanel(
-             #                        tabPanel("Encalhes por ano", plotlyOutput("n_ano_plot",height="600px")),
-             #                        tabPanel("Encalhes por mês", plotlyOutput("n_mes_plot",height="600px")),
-             #                        tabPanel("Espécies", plotlyOutput("n_sp_plot",height="600px")),
-             #                        tabPanel("Índice de Encalhes por Esforço Anual (I10)", plotlyOutput("i10ano_plot",height="600px")),
-             #                        tabPanel("Índice de Encalhes por Esforço Mensal (I10)", plotlyOutput("i10mes_plot",height="600px")),
-             #                        tabPanel("Pesquisadores", plotlyOutput("pesq_plot",height="600px")),
-             #                        tabPanel("Downloads", numericInput("maxrows", "Rows to show", 10),verbatimTextOutput("rawtable"),
-             #                                 downloadButton("downloadCsv", "Download as CSV"))
+             #                        tabPanel("Rio Grande (RIG)", plotlyOutput("nivel_plot_rg",height="600px"))
+             #                        
              #                      )
              #            )
              #          )
-             #          
-             # ),
              # 
+             # ),
+
              
              
              
              ##Tab About----------
              tabPanel("Sobre o site",
                       tags$div(
-                        tags$h1(("GeoPortal da Inundação"), tags$image(img(src= 'logo_ufrgs.png', height="159px", width='318px', align = "right"))),
+                        tags$h1(("GeoPortal da Inundação")), 
+                        tags$br(),
+                        tags$image(img(src= 'logo_ufrgs.png',  height='200px', align = "center")),
+                        tags$image(img(src= 'ifrs_logo.png',  height='200px',  align = "center")),
+                        tags$br(),
+                        tags$br(),
                         tags$br(),
                         tags$br(),
                         tags$br(),
                         tags$br(),
                         tags$h3("Detalhes"),
-                        tags$body("O GeoPortal para inundação... "),
+                        tags$body("O GeoPortal para inundação no Rio Grande do Sul usa um modelo de elevação e dados do Censo Demográfico (IBGE) para estimar o número de pessoas e domicílios afetados pelas inundações no estado."),
+                        tags$br(),
+                        tags$body("Foram gerados 3 cenários de elevação da Lagoa dos Patos: (1) 1,7 m, (2) 2,5 m e (3) 5,0 m."),
+                        tags$br(),
+                        tags$body("As estimativas de população e domicílios depende da escolha do cenário e de um limiar do percentual de área de inundação do setor censitário. Quanto maior este limiar de percentual, menor será o número de setores censitários computados."),
+                        
+                        tags$br(),
+                        tags$h3("Fontes de Dados:"),
+                        tags$ol(
+                          tags$li(tags$a(href="https://www.ibge.gov.br/estatisticas/sociais/populacao/22827-censo-demografico-2022.html?edicao=39499&t=resultados", "IBGE - Censo de 2022: Agregados por setores censitários preliminares")), 
+                          tags$li(tags$a(href="https://spacedata.copernicus.eu/collections/copernicus-digital-elevation-model", "COPERNICUS - Modelo de Elevação Global DEM30")), 
+                        ),
+                        tags$br(),
                         tags$h3("Autores"),
                         
                         "Tiago Gandra", tags$br(),
@@ -185,16 +250,36 @@ server = function(input, output) {
     mun %>% filter (NM_MUN %in% input$mun_select)
   })
   
+  reactive_db_set2 = reactive({
+    setdf %>% filter (NM_MUN %in% input$mun_select2&
+                      !!input$cenario_select2>=input$area_select2)%>%
+      group_by(NM_MUN)%>%
+      summarise(pop=sum(pop,na.rm=T),
+                dom=sum(dom,na.rm=T))
+  })
+  
   reactive_db_set = reactive({
     set %>% filter (NM_MUN %in% input$mun_select&
                       !!input$cenario_select>=input$area_select)
   })
+  
+  reactive_db_setall = reactive({
+    set %>% filter (NM_MUN %in% input$mun_select)
+  })
   output$reactive_pop <- renderText({
-    paste0(format(as.integer(sum(reactive_db_set()$pop*reactive_db_set()$c17p/100,na.rm=T)), big.mark=".", decimal.mark=",",1), " pessoas")
+    paste0(format(as.integer(sum(reactive_db_set()$pop,na.rm=T)), big.mark=".", decimal.mark=",",1), " pessoas")
   })
   
   output$reactive_dom <- renderText({
-    paste0(format(as.integer((sum(reactive_db_set()$dom*reactive_db_set()$c17p/100,na.rm=T))), big.mark=".", decimal.mark=",",1), " domicílios")
+    paste0(format(as.integer((sum(reactive_db_set()$dom,na.rm=T))), big.mark=".", decimal.mark=",",1), " domicílios")
+  })
+  
+  output$reactive_pop2 <- renderText({
+    paste0(format(as.integer(sum(reactive_db_set2()$pop,na.rm=T)), big.mark=".", decimal.mark=",",1), " pessoas")
+  })
+  
+  output$reactive_dom2 <- renderText({
+    paste0(format(as.integer((sum(reactive_db_set2()$dom,na.rm=T))), big.mark=".", decimal.mark=",",1), " domicílios")
   })
   
   #Outputs------------
@@ -202,12 +287,26 @@ server = function(input, output) {
     basemap
   })
   
+  output$nivel_plot_rg <- renderPlotly({
+    nivel_plot(nivel)
+  })
+  
+  output$pop_ploto <- renderPlotly({
+    pop_plot(reactive_db_set2())
+  })
+  
 
   #Map-------------
   observeEvent(input$update_view,{
     leafletProxy("mymap") %>% 
       clearMarkers() %>%
-      clearGroup(c("Municípios",'Setores Censitários Afetados','Cenário 2 (2,5 m)','Cenário 1 (1,7 m)'))%>%
+      clearGroup(c("Municípios",
+                   "Setores Afetados (% de área)",
+                   "População",
+                   "Densidade Demográfica",
+                   "Número de Domicílios",
+                   "Cenário 1 (1,7 m)",
+                   'Cenário 2 (2,5 m)'))%>%
       
       addPolygons(data = reactive_db_mun(),
                   color=c("darkgray"),
@@ -224,17 +323,56 @@ server = function(input, output) {
                   fillOpacity=0.4,
                   stroke= F,
                   group = 'Cenário 2 (2,5 m)')%>%
+      addPolygons(data = c50_pol,
+                  color=c("darkblue"),
+                  fillOpacity=0.4,
+                  stroke= F,
+                  group = 'Cenário 3 (5,0 m)')%>%
       addPolygons(data = reactive_db_set(),
-                  color=~colorNumeric("Reds", domain=reactive_db_set()$pop)(reactive_db_set()$pop),
+                  color=~colorNumeric(palette_rev, domain=reactive_db_set()$c17p)(reactive_db_set()$c17p),
                   fillOpacity = 0.8,
                   stroke=F,
-                  label = sprintf("Município: %s <br/>População: %s<br>Nº de domicílios:%s <br>Densidade Demográfica:%s",
-                                  reactive_db_set()$NM_MUN, reactive_db_set()$pop,reactive_db_set()$dom,format(reactive_db_set()$dens,nsmall = 2)) %>%
+                  label = sprintf("Município: %s <br/>População: %s<br>Nº de domicílios: %s <br>Densidade Demográfica: %s<br> Percentual de Área Afetada: %s",
+                                  reactive_db_set()$NM_MUN,
+                                  reactive_db_set()$pop,
+                                  reactive_db_set()$dom,
+                                  format(reactive_db_set()$dens,nsmall = 2),
+                                  as.integer(reactive_db_set()$c17p)) %>%
                     lapply(htmltools::HTML),
                   labelOptions = labelOptions(
                     style = list("font-weight" = "normal", padding = "3px 8px"),
                     textsize = "15px", direction = "auto"),
-                  group = 'Setores Censitários Afetados')
+                  group = "Setores Afetados (% de área)")%>%
+      addPolygons(data = reactive_db_setall(),
+                  color=~colorNumeric("Oranges", domain=reactive_db_setall()$dom)(reactive_db_setall()$dom),
+                  fillOpacity = 0.5,
+                  stroke=F,
+                  label = sprintf("Município: %s <br/>População: %s<br>Nº de domicílios: %s <br>Densidade Demográfica: %s<br> Percentual de Área Afetada: %s",
+                                  reactive_db_setall()$NM_MUN,
+                                  reactive_db_setall()$pop,
+                                  reactive_db_setall()$dom,
+                                  format(reactive_db_setall()$dens,nsmall = 2),
+                                  as.integer(reactive_db_setall()$c17p)) %>%
+                    lapply(htmltools::HTML),
+                  labelOptions = labelOptions(
+                    style = list("font-weight" = "normal", padding = "3px 8px"),
+                    textsize = "15px", direction = "auto"),
+                  group = "Número de Domicílios")%>%
+      addPolygons(data = reactive_db_setall(),
+                  color=~colorNumeric("Oranges", domain=reactive_db_setall()$pop)(reactive_db_setall()$pop),
+                  fillOpacity = 0.5,
+                  stroke=F,
+                  label = sprintf("Município: %s <br/>População: %s<br>Nº de domicílios: %s <br>Densidade Demográfica: %s<br> Percentual de Área Afetada: %s",
+                                  reactive_db_setall()$NM_MUN,
+                                  reactive_db_setall()$pop,
+                                  reactive_db_setall()$dom,
+                                  format(reactive_db_setall()$dens,nsmall = 2),
+                                  as.integer(reactive_db_setall()$c17p)) %>%
+                    lapply(htmltools::HTML),
+                  labelOptions = labelOptions(
+                    style = list("font-weight" = "normal", padding = "3px 8px"),
+                    textsize = "15px", direction = "auto"),
+                  group = "População")
     
     
     
