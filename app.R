@@ -263,9 +263,9 @@ server = function(input, output) {
                       !!input$cenario_select>=input$area_select)
   })
   
-  reactive_db_setall = reactive({
-    set %>% filter (NM_MUN %in% input$mun_select)
-  })
+  # reactive_db_setall = reactive({
+  #   set %>% filter (NM_MUN %in% input$mun_select)
+  # })
   output$reactive_pop <- renderText({
     paste0(format(as.integer(sum(reactive_db_set()$pop,na.rm=T)), big.mark=".", decimal.mark=",",1), " pessoas")
   })
@@ -343,31 +343,31 @@ server = function(input, output) {
                     style = list("font-weight" = "normal", padding = "3px 8px"),
                     textsize = "15px", direction = "auto"),
                   group = "Setores Afetados (% de área)")%>%
-      addPolygons(data = reactive_db_setall(),
-                  color=~colorNumeric("Oranges", domain=reactive_db_setall()$dom)(reactive_db_setall()$dom),
+      addPolygons(data = reactive_db_set(),
+                  color=~colorNumeric("Oranges", domain=reactive_db_set()$dom)(reactive_db_set()$dom),
                   fillOpacity = 0.5,
                   stroke=F,
                   label = sprintf("Município: %s <br/>População: %s<br>Nº de domicílios: %s <br>Densidade Demográfica: %s<br> Percentual de Área Afetada: %s",
-                                  reactive_db_setall()$NM_MUN,
-                                  reactive_db_setall()$pop,
-                                  reactive_db_setall()$dom,
-                                  format(reactive_db_setall()$dens,nsmall = 2),
-                                  as.integer(reactive_db_setall()$c17p)) %>%
+                                  reactive_db_set()$NM_MUN,
+                                  reactive_db_set()$pop,
+                                  reactive_db_set()$dom,
+                                  format(reactive_db_set()$dens,nsmall = 2),
+                                  as.integer(reactive_db_set()$c17p)) %>%
                     lapply(htmltools::HTML),
                   labelOptions = labelOptions(
                     style = list("font-weight" = "normal", padding = "3px 8px"),
                     textsize = "15px", direction = "auto"),
                   group = "Número de Domicílios")%>%
-      addPolygons(data = reactive_db_setall(),
-                  color=~colorNumeric("Oranges", domain=reactive_db_setall()$pop)(reactive_db_setall()$pop),
+      addPolygons(data = reactive_db_set(),
+                  color=~colorNumeric("Oranges", domain=reactive_db_set()$pop)(reactive_db_set()$pop),
                   fillOpacity = 0.5,
                   stroke=F,
                   label = sprintf("Município: %s <br/>População: %s<br>Nº de domicílios: %s <br>Densidade Demográfica: %s<br> Percentual de Área Afetada: %s",
-                                  reactive_db_setall()$NM_MUN,
-                                  reactive_db_setall()$pop,
-                                  reactive_db_setall()$dom,
-                                  format(reactive_db_setall()$dens,nsmall = 2),
-                                  as.integer(reactive_db_setall()$c17p)) %>%
+                                  reactive_db_set()$NM_MUN,
+                                  reactive_db_set()$pop,
+                                  reactive_db_set()$dom,
+                                  format(reactive_db_set()$dens,nsmall = 2),
+                                  as.integer(reactive_db_set()$c17p)) %>%
                     lapply(htmltools::HTML),
                   labelOptions = labelOptions(
                     style = list("font-weight" = "normal", padding = "3px 8px"),
